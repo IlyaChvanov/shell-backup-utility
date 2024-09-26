@@ -1,4 +1,3 @@
-
 #!/bin/bash
 
 max_size=1024
@@ -59,10 +58,8 @@ if [ "$size" -gt "$threshold" ]; then
 	    echo "$file"
 	done
 
-	# Формирование имени архива
-	archive_name="$backup_dir/backup_$(date +%Y_%m_%d_%H-%M-%S).tar.gz"
+	archive_name="$backup_dir/backup_$(date +%Y_%m_%d_%H:%M:%S).tar.gz"
 
-	# Архивация файлов
 	if tar -czf "$archive_name" -T <(printf "%s\n" "${files_to_archive[@]}"); then
 	    echo "Files have been archived to $archive_name"
 	    
@@ -75,7 +72,6 @@ if [ "$size" -gt "$threshold" ]; then
 	    echo "Error archiving files"
 	fi
 
-	# Удаление временного файла
 	rm -f "$tmp_for_filepathes"
 
 fi
