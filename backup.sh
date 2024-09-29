@@ -31,7 +31,7 @@ threshold=$(( max_size * maximum / 100 ))
 if [ "$size" -gt "$threshold" ]; then
     backup_dir="/backup"
     if [ ! -d "$backup_dir" ]; then
-	backup_dir="/mnt/c/Users/user/Desktop/TestUbuntu/backup" #for test
+	backup_dir="./backup"
 	mkdir -p "$backup_dir"	
     fi
 
