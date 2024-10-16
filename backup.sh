@@ -1,6 +1,6 @@
 #!/bin/bash
 
-max_size=1024
+max_size=1073741824
 
 # Цикл для проверки существования папки
 while true; do
