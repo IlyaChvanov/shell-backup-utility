@@ -4,3 +4,9 @@
 - cd shell-backup-utility
 - chmod +x backup.sh
 - ./backup.sh
+
+# tests
+cd tests
+- test.sh
+or
+- test.sh test.log
