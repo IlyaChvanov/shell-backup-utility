@@ -25,7 +25,6 @@ test_archive() {
 
     if ! [ $return_code -eq 0 ] || ! ls "$BACKUP_FOLDER"/backup_*.tar.gz 1> /dev/null 2>&1; then
         echo "Test failed: Archive not created. Return code: $return_code" >> "$LOGFILE"
-        cat "$OUTPUT_FILE" >> "$LOGFILE"
         return
     fi
 
@@ -56,19 +55,16 @@ test_do_not_archive() {
 
     if ! [ $return_code -eq 0 ]; then
         echo "Test failed: Return code: $return_code" >> "$LOGFILE"
-        cat "$OUTPUT_FILE" >> "$LOGFILE"
         return
     fi
 
     if ls "$BACKUP_FOLDER"/backup_*.tar.gz 1> /dev/null 2>&1; then
         echo "Test failed: Archive was created." >> "$LOGFILE"
-        cat "$OUTPUT_FILE" >> "$LOGFILE"
         return
     fi
     echo "Archive was not created" >> "$LOGFILE"
 
     if [ ! -f "$TEST_FOLDER/file1" ] || [ ! -f "$TEST_FOLDER/file2" ]; then
-        echo "Test failed: One or both files are missing." >> "$LOGFILE"
         if [ ! -f "$TEST_FOLDER/file1" ]; then
             echo "File1 is missing." >> "$LOGFILE"
         fi
@@ -82,6 +78,45 @@ test_do_not_archive() {
     echo "Test 2 passed" >> "$LOGFILE"
 }
 
+remove_only_oldest() {
+    echo "Starting test 3 (taken_number_of_files_to_archive_less_then_need)" >> "$LOGFILE"
+
+    mkdir -p "$TEST_FOLDER"
+    touch -t 202301011000 "$TEST_FOLDER/file1"
+    touch "$TEST_FOLDER/file2"
+
+    echo "Creating test files..." >> "$LOGFILE"
+    dd if=/dev/zero of="$TEST_FOLDER/file1" bs=2000 count=1 > /dev/null 2>&1
+    dd if=/dev/zero of="$TEST_FOLDER/file2" bs=2000 count=1 > /dev/null 2>&1
+
+    { echo "$TEST_FOLDER"; echo 1; echo 1; } | "$SCRIPT" >> "$OUTPUT_FILE" 2>&1
+    local return_code=$?
+
+    if ! [ $return_code -eq 0 ]; then
+        echo "Test failed: Return code: $return_code" >> "$LOGFILE"
+        return
+    fi
+
+    if ! ls "$BACKUP_FOLDER"/backup_*.tar.gz 1> /dev/null 2>&1; then
+        echo "Test failed: Archive was not created." >> "$LOGFILE"
+        return
+    fi
+    echo "Archive was created" >> "$LOGFILE"
+
+    if [ ! -f "$TEST_FOLDER/file2" ]; then
+        echo "Test failed: newest fail was deleted" >> "$LOGFILE"
+        return
+    fi
+
+    if [ -f "$TEST_FOLDER/file1" ]; then
+        echo "Test failed: oldest fail was deleted" >> "$LOGFILE"
+        return
+    fi
+
+    echo "Test 3 passed" >> "$LOGFILE"
+}
+
+
 cleanup() {
     echo "Cleaning up test folders and backup..." >> "$LOGFILE"
     rm -rf "$TEST_FOLDER"
@@ -94,3 +129,5 @@ cleanup
 
 test_do_not_archive
 cleanup
+
+remove_only_oldest
