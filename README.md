@@ -5,7 +5,7 @@
 - chmod +x backup.sh
 - ./backup.sh
 
-#tests
+# tests
 cd tests
 - test.sh
 or
