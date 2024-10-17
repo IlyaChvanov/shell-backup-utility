@@ -2,58 +2,146 @@
 
 SCRIPT="./../backup.sh"
 BACKUP_FOLDER="./backup"
+TEST_FOLDER="test_folder"
 
-LOGFILE="test.log"
-OUTPUTFILE="output.log"
+BUFFER_FILE="output.log"
+LOG_FILE="$1"
 
-> "$LOGFILE"
-> "$OUTPUTFILE"
+if [ -z "$LOG_FILE" ]; then
+    LOG_FILE="/dev/stdout"
+fi
 
-run_test() {
-    local test_folder="$1"
-    local expected_archive="$2"
-    local max_percentage="$3"
-    local files_to_remove="$4"
+> "$BUFFER_FILE"
+> "$LOG_FILE"
 
-    echo "Starting test for folder: $test_folder" >> "$LOGFILE"
+test_archive() {
+    echo "Starting test 1 (archive)" >> "$LOG_FILE"
 
-    mkdir -p "$test_folder"
-    touch "$test_folder/file1" "$test_folder/file2"
+    mkdir -p "$TEST_FOLDER"
+    touch "$TEST_FOLDER/file1" "$TEST_FOLDER/file2"
 
-    echo "Creating test files..." >> "$LOGFILE"
-    dd if=/dev/zero of="$test_folder/file1" bs=512 count=3 > /dev/null 2>&1
-    dd if=/dev/zero of="$test_folder/file2" bs=512 count=2 > /dev/null 2>&1
+    echo "Creating test files..." >> "$LOG_FILE"
+    dd if=/dev/zero of="$TEST_FOLDER/file1" bs=513 count=1 > /dev/null 2>&1
+    dd if=/dev/zero of="$TEST_FOLDER/file2" bs=513 count=1 > /dev/null 2>&1
 
-    { echo "$test_folder"; echo "$max_percentage"; echo "$files_to_remove"; } | "$SCRIPT" >> "$OUTPUTFILE" 2>&1
+    { echo "$TEST_FOLDER"; echo 100; echo 2; } | "$SCRIPT" >> "$BUFFER_FILE" 2>&1
     local return_code=$?
 
-    if [ $return_code -eq 0 ] && [ -f "$expected_archive" ]; then
-        echo "Test passed: Archive created successfully at $expected_archive." >> "$LOGFILE"
-    else
-        echo "Test failed: Archive not created. Return code: $return_code" >> "$LOGFILE"
-        cat "$OUTPUTFILE" >> "$LOGFILE"
+    if ! [ $return_code -eq 0 ] || ! ls "$BACKUP_FOLDER"/backup_*.tar.gz 1> /dev/null 2>&1; then
+        fail "Test failed: Archive not created. Return code: $return_code"
+        return
     fi
 
-    for file in "$test_folder/file1" "$test_folder/file2"; do
+    echo "Archive was created" >> "$LOG_FILE"
+
+    for file in "$TEST_FOLDER/file1" "$TEST_FOLDER/file2"; do
         if [ -f "$file" ]; then
-            echo "Test failed: File $file was not deleted." >> "$LOGFILE"
+            msg "Test failed: File $file was not deleted."
+            return
         fi
     done
-    echo "Files deletion check completed for test: $test_folder" >> "$LOGFILE"
+    echo "Both files were removed" >> "$LOG_FILE"
+    echo "Test 1 passed" >> "$LOG_FILE"
+}
+
+test_do_not_archive() {
+    echo "Starting test 2 (do not archive)" >> "$LOG_FILE"
+
+    mkdir -p "$TEST_FOLDER" >> "$LOG_FILE"
+    touch "$TEST_FOLDER/file1" "$TEST_FOLDER/file2" >> "$LOG_FILE"
+
+    echo "Creating test files..." >> "$LOG_FILE"
+    dd if=/dev/zero of="$TEST_FOLDER/file1" bs=100 count=1 > /dev/null 2>&1
+    dd if=/dev/zero of="$TEST_FOLDER/file2" bs=100 count=1 > /dev/null 2>&1
+
+    { echo "$TEST_FOLDER"; echo 70; echo 2; } | "$SCRIPT" >> "$BUFFER_FILE" 2>&1
+    local return_code=$?
+
+    if ! [ $return_code -eq 0 ]; then
+        fail "Test failed: Return code: $return_code"
+        return
+    fi
+
+    if ls "$BACKUP_FOLDER"/backup_*.tar.gz 1> /dev/null 2>&1; then
+        fail "Test failed: Archive was created."
+        return
+    fi
+    echo "Archive was not created" >> "$LOG_FILE"
+
+    if [ ! -f "$TEST_FOLDER/file1" ]; then
+        fail "File1 is missing."
+        return
+    fi
+
+    if [ ! -f "$TEST_FOLDER/file2" ]; then
+        fail "File2 is missing."
+        return
+    fi
+
+    echo "Both files still here" >> "$LOG_FILE"
+
+    echo "Test 2 passed" >> "$LOG_FILE"
+}
+
+remove_only_oldest() {
+    echo "Starting test 3 (taken_number_of_files_to_archive_less_then_need)" >> "$LOG_FILE"
+
+    mkdir -p "$TEST_FOLDER" >> "$LOG_FILE"
+    touch -t 202301011000 "$TEST_FOLDER/file1" >> "$LOG_FILE"
+    touch "$TEST_FOLDER/file2" >> "$LOG_FILE"
+
+    echo "Creating test files..."  >> "$LOG_FILE"
+    dd if=/dev/zero of="$TEST_FOLDER/file1" bs=2000 count=1 > /dev/null 2>&1
+    dd if=/dev/zero of="$TEST_FOLDER/file2" bs=2000 count=1 > /dev/null 2>&1
+
+    { echo "$TEST_FOLDER"; echo 1; echo 1; } | "$SCRIPT" >> "$BUFFER_FILE" 2>&1
+    local return_code=$?
+
+    if ! [ $return_code -eq 0 ]; then
+        fail "Test failed: Return code: $return_code"
+        return
+    fi
+
+    if ! ls "$BACKUP_FOLDER"/backup_*.tar.gz 1> /dev/null 2>&1; then
+        fail "Test failed: Archive was not created."
+        return
+    fi
+    echo "Archive was created"  >> "$LOG_FILE"
+
+    if [ ! -f "$TEST_FOLDER/file2" ]; then
+        fail "Test failed: newest fail was deleted"
+        return
+    fi
+
+    if [ -f "$TEST_FOLDER/file1" ]; then
+        fail "Test failed: oldest fail was deleted"
+        return
+    fi
+
+    echo "Test 3 passed"  >> "$LOG_FILE"
+}
+
+fail() {
+    msg="$1"
+    echo "$msg" >> "$LOG_FILE"
+    echo "///backup output:///" >> "$LOG_FILE"
+    cat "$BUFFER_FILE" >> "$LOG_FILE"
+    echo "////////////////////" >> "$LOG_FILE"
 }
 
 cleanup() {
-    echo "Cleaning up test folders and backup..." >> "$LOGFILE"
-    rm -rf "test_folder"
+    echo "Cleaning up test folders and backup..."  >> "$LOG_FILE"
+    rm -rf "$TEST_FOLDER"
     rm -rf "$BACKUP_FOLDER"
-    echo "Cleanup completed." >> "$LOGFILE"
+    rm -rf "$BUFFER_FILE"
+    echo "Cleanup completed." >> "$LOG_FILE"
 }
 
-test_folder="test_folder"
-backup_file="$BACKUP_FOLDER/backup_$(date +%Y_%m_%d_%H:%M:%S).tar.gz"
-
-run_test "$test_folder" "$backup_file" 100 2
-
+test_archive
 cleanup
 
-echo "TESTS COMPLETED" >> "$LOGFILE"
+test_do_not_archive
+cleanup
+
+remove_only_oldest
+cleanup
